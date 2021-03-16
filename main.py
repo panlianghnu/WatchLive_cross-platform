@@ -4,10 +4,11 @@ import bilibili
 import os
 import threading
 
-
 live = []
 out = []
 lock_out = threading.Lock()
+if_stop = ["run"]    # 可变全局变量才有意义
+lock_if_stop = threading.Lock()
 
 
 def handle_input():
@@ -23,7 +24,11 @@ def handle_input():
         if play_index.isnumeric():
             play_index = int(play_index)
             if play_index == 0:
-                break
+                print("exit....")
+                lock_if_stop.acquire()
+                if_stop[0] = "stop"
+                lock_if_stop.release()
+                return
             if 0 < play_index <= length:
                 open_app = "open -a /Applications/IINA.app"
                 cmd = open_app + " '" + out[play_index - 1] + "'"
@@ -46,6 +51,11 @@ def handle_live():
     file.close()
     index = 0
     for i in live:
+        # 读 if_stop
+        lock_if_stop.acquire()
+        if if_stop[0] == "stop":
+            return
+        lock_if_stop.release()
         if i[0] == '斗鱼':
             result = douyu.get_real_pc_url(i[1])
             if result != '未开播':
@@ -90,6 +100,7 @@ def handle_live():
                     lock_out.acquire()
                     out.append(result)
                     lock_out.release()
+    print("没有更多主播了")
 
 
 class liveThread(threading.Thread):
@@ -110,3 +121,5 @@ if __name__ == '__main__':
     thread2 = inputThread()
     thread1.start()
     thread2.start()
+    thread1.join()
+    thread2.join()
