@@ -3,42 +3,35 @@ import huya
 import bilibili
 import os
 import threading
+from pynput import keyboard
 
 live = []
-out = []
-lock_out = threading.Lock()
-if_stop = ["run"]    # 可变全局变量才有意义
+url = []
+lock_url = threading.Lock()
+name = []
+lock_name = threading.Lock()
+if_stop = ["run"]  # 可变全局变量才有意义
 lock_if_stop = threading.Lock()
 
 
-def handle_input():
-    while True:
-        play_index = input("")
-        length = -1
-        lock_out.acquire()
-        length = out.__len__()
-        lock_out.release()
-        if length == -1:
-            print("获取锁失败")
-            continue
-        if play_index.isnumeric():
-            play_index = int(play_index)
-            if play_index == 0:
-                print("exit....")
-                lock_if_stop.acquire()
-                if_stop[0] = "stop"
-                lock_if_stop.release()
-                return
-            if 0 < play_index <= length:
-                open_app = "open -a /Applications/IINA.app"
-                cmd = open_app + " '" + out[play_index - 1] + "'"
-                os.system(cmd)
-            else:
-                print("请输入正确数字")
-                continue
-        else:
-            print("请输入数字")
-            continue
+def handle_input(key):
+    play_index = key
+    length = -1
+    lock_url.acquire()
+    length = url.__len__()
+    lock_url.release()
+    if length == -1:
+        print("获取length失败")
+        return
+    if play_index.isnumeric():
+        play_index = int(play_index)
+        if 0 < play_index <= length:
+            lock_name.acquire()
+            print("__进入" + name[play_index-1] + "的直播间")
+            lock_name.release()
+            open_app = "open -a /Applications/IINA.app"
+            cmd = open_app + " '" + url[play_index - 1] + "'"
+            os.system(cmd)
 
 
 def handle_live():
@@ -54,6 +47,7 @@ def handle_live():
         # 读 if_stop
         lock_if_stop.acquire()
         if if_stop[0] == "stop":
+            print("exit...")
             return
         lock_if_stop.release()
         if i[0] == '斗鱼':
@@ -63,43 +57,67 @@ def handle_live():
                 if 'replay>' not in result:
                     print("%d: %s" % (index, i[2][0:-1]))
                     # print(result)
-                    lock_out.acquire()
-                    out.append(result)
-                    lock_out.release()
+                    lock_url.acquire()
+                    url.append(result)
+                    lock_url.release()
+
+                    lock_name.acquire()
+                    name.append(i[2][0:-1])
+                    lock_name.release()
                 else:
                     print("%d: %s(重播)" % (index, i[2][0:-1]))
                     # print(result[7:])
-                    lock_out.acquire()
-                    out.append(result)
-                    lock_out.release()
+                    lock_url.acquire()
+                    url.append(result[7:])
+                    lock_url.release()
+
+                    lock_name.acquire()
+                    name.append(i[2][0:-1])
+                    lock_name.release()
         elif i[0] == '虎牙':
             result = huya.get_real_url(i[1])
             if result != '未开播':
                 index = index + 1
                 if 'replay>' not in result:
                     print("%d: %s" % (index, i[2][0:-1]))
-                    lock_out.acquire()
-                    out.append(result)
-                    lock_out.release()
+                    lock_url.acquire()
+                    url.append(result)
+                    lock_url.release()
+
+                    lock_name.acquire()
+                    name.append(i[2][0:-1])
+                    lock_name.release()
                 else:
                     print("%d: %s(重播)" % (index, i[2][0:-1]))
-                    lock_out.acquire()
-                    out.append(result)
-                    lock_out.release()
+                    lock_url.acquire()
+                    url.append(result[7:])
+                    lock_url.release()
+
+                    lock_name.acquire()
+                    name.append(i[2][0:-1])
+                    lock_name.release()
         elif i[0] == 'bilibili':
             result = bilibili.get_real_url(i[1])
             if result != '未开播':
                 index = index + 1
                 if 'replay>' not in result:
                     print("%d: %s" % (index, i[2][0:-1]))
-                    lock_out.acquire()
-                    out.append(result)
-                    lock_out.release()
+                    lock_url.acquire()
+                    url.append(result)
+                    lock_url.release()
+
+                    lock_name.acquire()
+                    name.append(i[2][0:-1])
+                    lock_name.release()
                 else:
                     print("%d: %s(重播)" % (index, i[2][0:-1]))
-                    lock_out.acquire()
-                    out.append(result)
-                    lock_out.release()
+                    lock_url.acquire()
+                    url.append(result[7:])
+                    lock_url.release()
+
+                    lock_name.acquire()
+                    name.append(i[2][0:-1])
+                    lock_name.release()
     print("没有更多主播了")
 
 
@@ -110,7 +128,22 @@ class liveThread(threading.Thread):
 
 class inputThread(threading.Thread):
     def run(self):
-        handle_input()
+        with keyboard.Listener(on_release=on_release) as listeners:
+            listeners.join()
+
+
+def on_release(key):
+    try:
+        key_ = str(key)
+        if key_ == "'0'" or key == keyboard.Key.esc:
+            lock_if_stop.acquire()
+            if_stop[0] = "stop"
+            lock_if_stop.release()
+            print(":不再监听键盘...")
+            return False
+        handle_input(key_[1])
+    except AttributeError:
+        print("keyboard err")
 
 
 if __name__ == '__main__':
